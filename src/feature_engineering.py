@@ -1,15 +1,6 @@
 # src/feature_engineering.py
 from imblearn.over_sampling import SMOTE
 import pandas as pd
-import datetime as dt
-
-def create_time_features(df, time_col='TransactionStartTime'):
-    """Creates time-based features from a datetime column."""
-    df['TransactionHour'] = df[time_col].dt.hour
-    df['TransactionDayOfWeek'] = df[time_col].dt.dayofweek
-    df['TransactionMonth'] = df[time_col].dt.month
-    df['TransactionYear'] = df[time_col].dt.year
-    return df
 
 def create_product_amount_interaction(df):
     """Creates an interaction feature between product category and mean amount."""
@@ -26,8 +17,6 @@ def create_customer_aggregate_features(df, customer_id_col='CustomerId', amount_
     df = pd.merge(df, customer_agg, on=customer_id_col, how='left')
     return df
 
-import pandas as pd
-
 def create_rfms_features(df, customer_id_col='CustomerId', transaction_time_col='TransactionStartTime', amount_col='Amount'):
     """Creates RFM features per customer."""
     df['TransactionDate'] = pd.to_datetime(df[transaction_time_col]).dt.date
@@ -41,11 +30,8 @@ def create_rfms_features(df, customer_id_col='CustomerId', transaction_time_col=
     rfm_monetary.columns = [customer_id_col, 'Monetary']
     rfm = rfm_recency.merge(rfm_frequency, on=customer_id_col).merge(rfm_monetary, on=customer_id_col)
     df = pd.merge(df, rfm, on=customer_id_col, how='left')
-
-    # Conditional drop
     if 'TransactionDate' in df.columns:
         df = df.drop(columns=['TransactionDate'])
-
     return df
 
 def encode_categorical_features(df, categorical_cols, target_col='FraudResult'):
