@@ -2,26 +2,29 @@ import numpy as np
 import pandas as pd
 
 def calculate_woe_iv(dataset, feature, target):
+    """Calculates Weight of Evidence (WoE) and Information Value (IV)."""
     lst = []
     for i in range(dataset[feature].nunique()):
-        val = list(dataset[feature].unique())[i]
-        lst.append({
-            'Value': val,
-            'All': dataset[dataset[feature] == val].count()[target],
-            'Good': dataset[(dataset[feature] == val) & (dataset[target] == 0)].count()[target],
-            'Bad': dataset[(dataset[feature] == val) & (dataset[target] == 1)].count()[target]
-        })
+        val = list(dataset.groupby(feature, observed=True)[target].value_counts().reset_index(name='val')[dataset.groupby(feature, observed=True)[target].value_counts().reset_index(name='val')[feature] == dataset[feature].unique()[i]]['val'])
+        try:
+            lst.append([dataset[feature].unique()[i], val[0], val[1], val[0] / dataset[dataset[target] == 0].shape[0], val[1] / dataset[dataset[target] == 1].shape[0]])
+        except IndexError:
+            if len(val) == 1 and dataset[target].unique()[0] == 0:
+                lst.append([dataset[feature].unique()[i], val[0], 0, val[0] / dataset[dataset[target] == 0].shape[0], 1e-10])
+            elif len(val) == 1 and dataset[target].unique()[0] == 1:
+                lst.append([dataset[feature].unique()[i], 0, val[0], 1e-10, val[0] / dataset[dataset[target] == 1].shape[0]])
 
-    dset = pd.DataFrame(lst)
-    dset['Good %'] = (dset['Good'] + 0.000001) / dset['All']
-    dset['Bad %'] = (dset['Bad'] + 0.000001) / dset['All']
-    dset['WoE'] = np.log(dset['Good %'] / dset['Bad %'])
-    dset = dset.replace([np.inf, -np.inf], 1000000) #replace inf with large number.
-    dset['IV'] = (dset['Good %'] - dset['Bad %']) * dset['WoE']
-    iv = dset['IV'].sum() #calculate IV sum outside of the loop.
-    return dset
+    data = pd.DataFrame(lst, columns=[feature, 'Good', 'Bad', 'Good %', 'Bad %'])
+    data['Good %'] = data['Good %'] + 0.0001
+    data['Bad %'] = data['Bad %'] + 0.0001
+    data['WoE'] = np.log(data['Good %'] / data['Bad %'])
+    data['IV'] = (data['Good %'] - data['Bad %']) * data['WoE']
+    data = data.sort_values(by=['IV'], ascending=False)
+    data.replace([np.inf, -np.inf], 10, inplace=True)
+    return data
 
-def apply_woe_binning(dataset, feature, target, woe_df):
-    woe_dict = woe_df.set_index('Value')['WoE'].to_dict()
-    dataset[feature + '_woe'] = dataset[feature].map(woe_dict)
+def apply_woe_binning(dataset, feature_bins, target, woe_df):
+    """Applies WoE binning to a dataset."""
+    woe_map = dict(zip(woe_df[feature_bins], woe_df['WoE']))
+    dataset[feature_bins + '_woe'] = dataset[feature_bins].map(woe_map)
     return dataset
